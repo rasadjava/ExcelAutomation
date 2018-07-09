@@ -2,6 +2,7 @@ package com.organization.excel.automation.main;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -11,6 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -20,19 +24,45 @@ public class ReadExcel {
 	public static void main(String[] args) {
 		String excelPath = "D:\\USAutomation\\excel_sheets\\";
 		String sheetName = "Sheet1";
-		System.out.println("[INFO]: Filtered list "+ReadExcel.comaperExcels(ReadExcel.storeExcelsContent(excelPath, sheetName)));
+		String outputSheetName = "FilteredExcel1.xls";
+		System.out.println("[INFO]: Filtered list " + ReadExcel.comaperExcels(ReadExcel.storeExcelsContent(excelPath, sheetName)));
+		ReadExcel.generateNewExcel(ReadExcel.comaperExcels(ReadExcel.storeExcelsContent(excelPath, sheetName)), excelPath, outputSheetName);
+	}
+	
+	public static void generateNewExcel(Map<Integer, ArrayList<String>> finalMapContent, String outputPath, String outputSheetName) {
+		try {
+            HSSFWorkbook workbook = new HSSFWorkbook();
+            HSSFSheet sheet = workbook.createSheet("FirstSheet");  
+            for(Entry<Integer, ArrayList<String>> mapContent: finalMapContent.entrySet()) {
+            	short excelIndex = mapContent.getKey().shortValue();
+            	HSSFRow row = sheet.createRow(excelIndex);
+            	List<String> excelListContent = mapContent.getValue();
+            	int count= -1;
+            	for(String excelContent: excelListContent) {
+            		count++;
+            		 row.createCell(count).setCellValue(excelContent);
+            	}
+            }
+            FileOutputStream fileOut = new FileOutputStream(outputPath+"/"+outputSheetName);
+            workbook.write(fileOut);
+            fileOut.close();
+            workbook.close();
+            System.out.println("Your excel file has been generated!");
+
+        } catch ( Exception ex ) {
+            System.out.println(ex);
+        }
 	}
 
-	public static Map<Integer, ArrayList<String>> comaperExcels(
-			Map<String, Map<Integer, ArrayList<String>>> excelsContant) {
+	public static Map<Integer, ArrayList<String>> comaperExcels(Map<String, Map<Integer, ArrayList<String>>> excelsContant) {
 		Map<Integer, ArrayList<String>> excelOne = new HashMap<Integer, ArrayList<String>>();
 		Map<Integer, ArrayList<String>> excelTwo = new HashMap<Integer, ArrayList<String>>();
 		for (Entry<String, Map<Integer, ArrayList<String>>> excelContent : excelsContant.entrySet()) {
 			System.out.println("[INFO]:****" + excelContent);
 			if (excelContent.getKey().equals("List of user to compare.xlsx")) {
-				excelOne = excelContent.getValue();
+				excelTwo  = excelContent.getValue();
 			} else if (excelContent.getKey().equals("List of users from which records needs to be deleted.xlsx")) {
-				excelTwo = excelContent.getValue();
+				excelOne = excelContent.getValue();
 			}
 		}
 
@@ -41,23 +71,26 @@ public class ReadExcel {
 			if (contentOne.getKey() > 0) {
 				String machineName = contentOneValues.get(0);
 				// excelTwo logic
-				for (Entry<Integer, ArrayList<String>> contentTwo : excelTwo.entrySet()) {
-					List<String> contentTwoValues = contentTwo.getValue();
-					if (contentTwo.getKey() > 0) {
-						if (contentTwoValues.get(0).equals(machineName)) {
-							excelTwo.remove(contentTwo.getKey());
-						}
-					}
-				}
+  				excelTwo = ReadExcel.excelTwoLogic(excelTwo, machineName);
 			}
 		}
 		return excelTwo;
 	}
 	
+	public static Map<Integer, ArrayList<String>> excelTwoLogic(Map<Integer, ArrayList<String>> excelTwo, String machineName) {
+		Iterator it = excelTwo.entrySet().iterator();
+    	while (it.hasNext())
+    	{
+    	   Entry item = (Entry) it.next();
+    	   List<String> list=(List<String>) item.getValue();
+    	   if(list.get(0).equals(machineName)) {
+    		   it.remove();
+    	}
+    	   }
+		return excelTwo;
+	}
+	
 	public static Map<String, Map<Integer, ArrayList<String>>> storeExcelsContent(String excelPath, String sheetName) {
-		// String excelPath = "D:\\USAutomation\\excel_sheets\\Deployed Machine.xlsx";
-		/*String excelPath = "D:\\USAutomation\\excel_sheets\\";
-		String sheetName = "Sheet1";*/
 		String mapKey = null;
 		Map<String, Map<Integer, ArrayList<String>>> excelsContent = new HashMap<String, Map<Integer, ArrayList<String>>>();
 		Map<Integer, ArrayList<String>> excelContent = new HashMap<Integer, ArrayList<String>>();
@@ -72,12 +105,10 @@ public class ReadExcel {
 						mapKey = excelFile;
 					}
 					System.out.println("Copying excel content from the sheet "+mapKey);
-					// long start = System.currentTimeMillis();
 					long start = Instant.now().getEpochSecond();
 					excelContent = ReadExcel.readExcelContent(excelPath + excelFile, sheetName);
-					// long end = System.currentTimeMillis();
 					long end = Instant.now().getEpochSecond();
-					System.out.println("Time for " + mapKey + " = " + (start - end));
+					System.out.println("Time for " + mapKey + " = " + (start - end) + " seconds");
 					excelsContent.put(mapKey, excelContent);
 				}
 			}
@@ -92,7 +123,6 @@ public class ReadExcel {
 
 	public static Map<Integer, ArrayList<String>> readExcelContent(String excelFilePath, String sheetName)
 			throws IOException {
-		// SheetContent sheetContent = new SheetContent();
 		int sheetNumber = 0;
 		Map<Integer, ArrayList<String>> bunchOfRows = new HashMap<Integer, ArrayList<String>>();
 		ArrayList<String> rowList;
@@ -121,9 +151,7 @@ public class ReadExcel {
 			}
 			bunchOfRows.put(count, rowList);
 		}
-		// sheetContent.setSheetName(sheet.getSheetName());
 		System.out.println("[INFO]: Reading Excel Sheet '" + sheet.getSheetName() + "'");
-		// sheetContent.setSheetContent(bunchOfRows);
 		return bunchOfRows;
 	}
 	
@@ -134,7 +162,6 @@ public class ReadExcel {
                 String excelFile = file.getName();
                 if (excelFile.contains(".xlsx") && !(excelFile.contains("~$"))) {
                       allExcelFiles.add(excelFile);
-//                    System.out.println("[INFO]: Excel files path> " + excelFile);
                 }
          }
          return allExcelFiles;
